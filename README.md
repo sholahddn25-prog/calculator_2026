@@ -1,4 +1,4 @@
-# calculator_2026
+# quiet_luxury_calculator_flutter
 
 A new Flutter project.
 
