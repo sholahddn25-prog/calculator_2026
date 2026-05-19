@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../models/history_item.dart';
 import '../models/operator.dart';
+import '../models/scientific_operator.dart';
 import '../theme/app_theme.dart';
 import '../utils/calculator_engine.dart';
 import '../utils/number_formatting.dart';
 import '../utils/animations/calc_transition.dart';
+import '../utils/scientific_calculator.dart';
+import '../utils/sound_manager.dart';
 import '../widgets/calc_key_button.dart';
 import '../widgets/history_sheet.dart';
+import '../widgets/converter_sheet.dart';
+import '../widgets/scientific_panel.dart';
 
 class CalculatorScreen extends StatefulWidget {
   const CalculatorScreen({super.key});
@@ -16,8 +21,10 @@ class CalculatorScreen extends StatefulWidget {
   State<CalculatorScreen> createState() => _CalculatorScreenState();
 }
 
-class _CalculatorScreenState extends State<CalculatorScreen> {
+class _CalculatorScreenState extends State<CalculatorScreen>
+    with SingleTickerProviderStateMixin {
   final _engine = CalculatorEngine();
+  final _scientificEngine = ScientificCalculator();
 
   String display = '0';
   String history = '';
@@ -27,15 +34,36 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
 
   bool isDarkMode = false;
   bool showHistory = false;
+  bool showScientific = false;
+  bool showConverter = false;
+  ScientificOperator? pendingScientificOp;
 
   final List<HistoryItem> historyLog = [];
+  late AnimationController _headerAnimationController;
 
   ThemeData get _lightTheme => AppTheme.light();
   ThemeData get _darkTheme => AppTheme.dark();
 
   @override
+  void initState() {
+    super.initState();
+    _headerAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+    _headerAnimationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _headerAnimationController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = isDarkMode ? _darkTheme : _lightTheme;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Theme(
       data: theme,
@@ -43,64 +71,136 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         backgroundColor: theme.scaffoldBackgroundColor,
         body: Stack(
           children: [
+            // Animated background gradient
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 600),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? [
+                          const Color(0xFF0E0F12),
+                          const Color(0xFF1A1B22),
+                          const Color(0xFF0E0F12),
+                        ]
+                      : [
+                          const Color(0xFFF5F5F7),
+                          const Color(0xFFFFFFFF),
+                          const Color(0xFFF0F0F2),
+                        ],
+                ),
+              ),
+            ),
             SafeArea(
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
                   child: Column(
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            IconButton(
-                              onPressed: () =>
-                                  setState(() => showHistory = true),
-                              icon: const Icon(
-                                Icons.history_outlined,
-                                size: 26,
+                      // Animated header
+                      SlideTransition(
+                        position:
+                            Tween<Offset>(
+                              begin: const Offset(0, -0.1),
+                              end: Offset.zero,
+                            ).animate(
+                              CurvedAnimation(
+                                parent: _headerAnimationController,
+                                curve: Curves.easeOutCubic,
                               ),
                             ),
-                            const Text(
-                              'Calculator',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
+                        child: FadeTransition(
+                          opacity: CurvedAnimation(
+                            parent: _headerAnimationController,
+                            curve: Curves.easeOutCubic,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                _buildHeaderButton(
+                                  icon: Icons.history_outlined,
+                                  onPressed: () =>
+                                      setState(() => showHistory = true),
+                                ),
+                                ShaderMask(
+                                  shaderCallback: (bounds) {
+                                    return LinearGradient(
+                                      colors: [
+                                        Colors.transparent,
+                                        theme.colorScheme.onSurface,
+                                        Colors.transparent,
+                                      ],
+                                    ).createShader(bounds);
+                                  },
+                                  child: const Text(
+                                    'Calculator',
+                                    style: TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildHeaderButton(
+                                      icon: Icons.functions,
+                                      onPressed: () => setState(
+                                        () => showScientific = !showScientific,
+                                      ),
+                                    ),
+                                    _buildHeaderButton(
+                                      icon: Icons.swap_horiz,
+                                      onPressed: () =>
+                                          setState(() => showConverter = true),
+                                    ),
+                                    _buildHeaderButton(
+                                      icon: isDarkMode
+                                          ? Icons.wb_sunny_outlined
+                                          : Icons.nightlight_round_outlined,
+                                      onPressed: () => setState(
+                                        () => isDarkMode = !isDarkMode,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              onPressed: () =>
-                                  setState(() => isDarkMode = !isDarkMode),
-                              icon: Icon(
-                                isDarkMode
-                                    ? Icons.wb_sunny_outlined
-                                    : Icons.nightlight_round_outlined,
-                                size: 26,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       // Content area
                       Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.end,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
+                              // History display
                               AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 200),
+                                duration: const Duration(milliseconds: 300),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
                                 transitionBuilder: (child, anim) {
                                   return FadeTransition(
                                     opacity: anim,
                                     child: SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: const Offset(0, 0.05),
-                                        end: Offset.zero,
-                                      ).animate(anim),
+                                      position:
+                                          Tween<Offset>(
+                                            begin: const Offset(0.1, 0),
+                                            end: Offset.zero,
+                                          ).animate(
+                                            CurvedAnimation(
+                                              parent: anim,
+                                              curve: Curves.easeOutCubic,
+                                            ),
+                                          ),
                                       child: child,
                                     ),
                                   );
@@ -111,17 +211,19 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                                         history,
                                         key: ValueKey(history),
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 14,
                                           fontWeight: FontWeight.w500,
+                                          letterSpacing: 0.3,
                                           color: theme
                                               .colorScheme
                                               .onSurfaceVariant,
                                         ),
                                       ),
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 12),
+                              // Main display
                               AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 260),
+                                duration: const Duration(milliseconds: 350),
                                 switchInCurve: Curves.easeOutCubic,
                                 switchOutCurve: Curves.easeInCubic,
                                 transitionBuilder: (child, anim) {
@@ -130,222 +232,309 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                                     child: child,
                                   );
                                 },
-                                child: Text(
-                                  _engine.displayFormat(display),
+                                child: Container(
                                   key: ValueKey(display),
-                                  style: TextStyle(
-                                    fontSize: 56,
-                                    fontWeight: FontWeight.w200,
-                                    height: 1,
-                                    color: theme.colorScheme.onSurface,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(24),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: isDark
+                                          ? [
+                                              Colors.white.withValues(
+                                                alpha: 0.05,
+                                              ),
+                                              Colors.white.withValues(
+                                                alpha: 0.02,
+                                              ),
+                                            ]
+                                          : [
+                                              Colors.black.withValues(
+                                                alpha: 0.02,
+                                              ),
+                                              Colors.black.withValues(
+                                                alpha: 0.01,
+                                              ),
+                                            ],
+                                    ),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.08)
+                                          : Colors.black.withValues(
+                                              alpha: 0.05,
+                                            ),
+                                      width: 1,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: isDark
+                                            ? Colors.black.withValues(
+                                                alpha: 0.3,
+                                              )
+                                            : Colors.black.withValues(
+                                                alpha: 0.05,
+                                              ),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    _engine.displayFormat(display),
+                                    textAlign: TextAlign.right,
+                                    style: TextStyle(
+                                      fontSize: 64,
+                                      fontWeight: FontWeight.w200,
+                                      letterSpacing: -1,
+                                      height: 1,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
                                   ),
                                 ),
                               ),
+                              const SizedBox(height: 24),
 
-                              const SizedBox(height: 16),
-
-                              // Keypad area (flexed so no overflow)
+                              // Keypad area
                               Flexible(
-                                child: Column(
-                                  children: [
-                                    // 4x4 keypad using GridView
-                                    Expanded(
-                                      child: GridView.builder(
-                                        shrinkWrap: true,
-                                        physics:
-                                            const NeverScrollableScrollPhysics(),
-                                        gridDelegate:
-                                            const SliverGridDelegateWithFixedCrossAxisCount(
-                                              crossAxisCount: 4,
-                                              mainAxisSpacing: 12,
-                                              crossAxisSpacing: 12,
-                                              childAspectRatio: 1.1,
+                                child: showScientific
+                                    ? ScientificPanel(
+                                        onScientificTap:
+                                            _handleScientificFunction,
+                                      )
+                                    : Column(
+                                        children: [
+                                          // 4x4 keypad using GridView
+                                          Expanded(
+                                            child: GridView.builder(
+                                              shrinkWrap: true,
+                                              physics:
+                                                  const NeverScrollableScrollPhysics(),
+                                              gridDelegate:
+                                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                                    crossAxisCount: 4,
+                                                    mainAxisSpacing: 14,
+                                                    crossAxisSpacing: 14,
+                                                    childAspectRatio: 1.0,
+                                                  ),
+                                              itemCount: 16,
+                                              itemBuilder: (context, index) {
+                                                switch (index) {
+                                                  case 0:
+                                                    return CalcKeyButton(
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .utility,
+                                                      label: 'AC',
+                                                      labelColor:
+                                                          Colors.redAccent,
+                                                      onTap: _handleClear,
+                                                    );
+                                                  case 1:
+                                                    return CalcKeyButton(
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .utility,
+                                                      label: '+/-',
+                                                      onTap: _handleToggleSign,
+                                                    );
+                                                  case 2:
+                                                    return CalcKeyButton(
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .utility,
+                                                      label: '%',
+                                                      onTap: _handlePercent,
+                                                    );
+                                                  case 3:
+                                                    return CalcKeyButton(
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .operator,
+                                                      icon: const Icon(
+                                                        Icons.close,
+                                                        size: 26,
+                                                      ),
+                                                      onTap: () =>
+                                                          _handleOperator(
+                                                            Operator.divide,
+                                                          ),
+                                                    );
+
+                                                  case 4:
+                                                    return CalcKeyButton(
+                                                      label: '7',
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .number,
+                                                      onTap: () =>
+                                                          _handleDigit('7'),
+                                                    );
+                                                  case 5:
+                                                    return CalcKeyButton(
+                                                      label: '8',
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .number,
+                                                      onTap: () =>
+                                                          _handleDigit('8'),
+                                                    );
+                                                  case 6:
+                                                    return CalcKeyButton(
+                                                      label: '9',
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .number,
+                                                      onTap: () =>
+                                                          _handleDigit('9'),
+                                                    );
+                                                  case 7:
+                                                    return CalcKeyButton(
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .operator,
+                                                      icon: const Icon(
+                                                        Icons.clear,
+                                                        size: 26,
+                                                      ),
+                                                      onTap: () =>
+                                                          _handleOperator(
+                                                            Operator.multiply,
+                                                          ),
+                                                    );
+
+                                                  case 8:
+                                                    return CalcKeyButton(
+                                                      label: '4',
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .number,
+                                                      onTap: () =>
+                                                          _handleDigit('4'),
+                                                    );
+                                                  case 9:
+                                                    return CalcKeyButton(
+                                                      label: '5',
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .number,
+                                                      onTap: () =>
+                                                          _handleDigit('5'),
+                                                    );
+                                                  case 10:
+                                                    return CalcKeyButton(
+                                                      label: '6',
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .number,
+                                                      onTap: () =>
+                                                          _handleDigit('6'),
+                                                    );
+                                                  case 11:
+                                                    return CalcKeyButton(
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .operator,
+                                                      icon: const Icon(
+                                                        Icons.remove,
+                                                        size: 26,
+                                                      ),
+                                                      onTap: () =>
+                                                          _handleOperator(
+                                                            Operator.subtract,
+                                                          ),
+                                                    );
+
+                                                  case 12:
+                                                    return CalcKeyButton(
+                                                      label: '1',
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .number,
+                                                      onTap: () =>
+                                                          _handleDigit('1'),
+                                                    );
+                                                  case 13:
+                                                    return CalcKeyButton(
+                                                      label: '2',
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .number,
+                                                      onTap: () =>
+                                                          _handleDigit('2'),
+                                                    );
+                                                  case 14:
+                                                    return CalcKeyButton(
+                                                      label: '3',
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .number,
+                                                      onTap: () =>
+                                                          _handleDigit('3'),
+                                                    );
+                                                  case 15:
+                                                    return CalcKeyButton(
+                                                      variant:
+                                                          CalcKeyButtonVariant
+                                                              .operator,
+                                                      icon: const Icon(
+                                                        Icons.add,
+                                                        size: 26,
+                                                      ),
+                                                      onTap: () =>
+                                                          _handleOperator(
+                                                            Operator.add,
+                                                          ),
+                                                    );
+                                                }
+                                                return null;
+                                              },
                                             ),
-                                        itemCount: 16,
-                                        itemBuilder: (context, index) {
-                                          switch (index) {
-                                            case 0:
-                                              return CalcKeyButton(
-                                                variant: CalcKeyButtonVariant
-                                                    .utility,
-                                                label: 'AC',
-                                                labelColor: Colors.redAccent,
-                                                onTap: _handleClear,
-                                              );
-                                            case 1:
-                                              return CalcKeyButton(
-                                                variant: CalcKeyButtonVariant
-                                                    .utility,
-                                                label: '+/-',
-                                                onTap: _handleToggleSign,
-                                              );
-                                            case 2:
-                                              return CalcKeyButton(
-                                                variant: CalcKeyButtonVariant
-                                                    .utility,
-                                                label: '%',
-                                                onTap: _handlePercent,
-                                              );
-                                            case 3:
-                                              return CalcKeyButton(
-                                                variant: CalcKeyButtonVariant
-                                                    .operator,
-                                                icon: const Icon(
-                                                  Icons.close,
-                                                  size: 26,
-                                                ),
-                                                onTap: () => _handleOperator(
-                                                  Operator.divide,
-                                                ),
-                                              );
+                                          ),
 
-                                            case 4:
-                                              return CalcKeyButton(
-                                                label: '7',
-                                                variant:
-                                                    CalcKeyButtonVariant.number,
-                                                onTap: () => _handleDigit('7'),
-                                              );
-                                            case 5:
-                                              return CalcKeyButton(
-                                                label: '8',
-                                                variant:
-                                                    CalcKeyButtonVariant.number,
-                                                onTap: () => _handleDigit('8'),
-                                              );
-                                            case 6:
-                                              return CalcKeyButton(
-                                                label: '9',
-                                                variant:
-                                                    CalcKeyButtonVariant.number,
-                                                onTap: () => _handleDigit('9'),
-                                              );
-                                            case 7:
-                                              return CalcKeyButton(
-                                                variant: CalcKeyButtonVariant
-                                                    .operator,
-                                                icon: const Icon(
-                                                  Icons.clear,
-                                                  size: 26,
-                                                ),
-                                                onTap: () => _handleOperator(
-                                                  Operator.multiply,
-                                                ),
-                                              );
+                                          const SizedBox(height: 14),
 
-                                            case 8:
-                                              return CalcKeyButton(
-                                                label: '4',
-                                                variant:
-                                                    CalcKeyButtonVariant.number,
-                                                onTap: () => _handleDigit('4'),
-                                              );
-                                            case 9:
-                                              return CalcKeyButton(
-                                                label: '5',
-                                                variant:
-                                                    CalcKeyButtonVariant.number,
-                                                onTap: () => _handleDigit('5'),
-                                              );
-                                            case 10:
-                                              return CalcKeyButton(
-                                                label: '6',
-                                                variant:
-                                                    CalcKeyButtonVariant.number,
-                                                onTap: () => _handleDigit('6'),
-                                              );
-                                            case 11:
-                                              return CalcKeyButton(
-                                                variant: CalcKeyButtonVariant
-                                                    .operator,
-                                                icon: const Icon(
-                                                  Icons.remove,
-                                                  size: 26,
+                                          // Bottom row: 0, '.', '='
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                flex: 2,
+                                                child: CalcKeyButton(
+                                                  label: '0',
+                                                  variant: CalcKeyButtonVariant
+                                                      .number,
+                                                  onTap: () =>
+                                                      _handleDigit('0'),
                                                 ),
-                                                onTap: () => _handleOperator(
-                                                  Operator.subtract,
+                                              ),
+                                              const SizedBox(width: 14),
+                                              Expanded(
+                                                child: CalcKeyButton(
+                                                  label: '.',
+                                                  variant: CalcKeyButtonVariant
+                                                      .number,
+                                                  onTap: _handleDecimal,
                                                 ),
-                                              );
-
-                                            case 12:
-                                              return CalcKeyButton(
-                                                label: '1',
-                                                variant:
-                                                    CalcKeyButtonVariant.number,
-                                                onTap: () => _handleDigit('1'),
-                                              );
-                                            case 13:
-                                              return CalcKeyButton(
-                                                label: '2',
-                                                variant:
-                                                    CalcKeyButtonVariant.number,
-                                                onTap: () => _handleDigit('2'),
-                                              );
-                                            case 14:
-                                              return CalcKeyButton(
-                                                label: '3',
-                                                variant:
-                                                    CalcKeyButtonVariant.number,
-                                                onTap: () => _handleDigit('3'),
-                                              );
-                                            case 15:
-                                              return CalcKeyButton(
-                                                variant: CalcKeyButtonVariant
-                                                    .operator,
-                                                icon: const Icon(
-                                                  Icons.add,
-                                                  size: 26,
+                                              ),
+                                              const SizedBox(width: 14),
+                                              Expanded(
+                                                child: CalcKeyButton(
+                                                  variant: CalcKeyButtonVariant
+                                                      .primary,
+                                                  icon: const Icon(
+                                                    Icons.arrow_forward_rounded,
+                                                    size: 28,
+                                                  ),
+                                                  onTap: _handleEqual,
                                                 ),
-                                                onTap: () => _handleOperator(
-                                                  Operator.add,
-                                                ),
-                                              );
-                                          }
-                                          return null;
-                                        },
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                                    ),
-
-                                    const SizedBox(height: 12),
-
-                                    // Bottom row: 0, '.', '='
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          flex: 2,
-                                          child: CalcKeyButton(
-                                            label: '0',
-                                            variant:
-                                                CalcKeyButtonVariant.number,
-                                            onTap: () => _handleDigit('0'),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: CalcKeyButton(
-                                            label: '.',
-                                            variant:
-                                                CalcKeyButtonVariant.number,
-                                            onTap: _handleDecimal,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: CalcKeyButton(
-                                            variant:
-                                                CalcKeyButtonVariant.primary,
-                                            icon: const Icon(
-                                              Icons.arrow_forward_rounded,
-                                              size: 28,
-                                              // matches the original React "=" (operator action) better than a thin checkmark
-                                            ),
-                                            onTap: _handleEqual,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
                               ),
                             ],
                           ),
@@ -364,7 +553,34 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                 onPick: _useHistoryItem,
                 onClear: () => setState(() => historyLog.clear()),
               ),
+
+            if (showConverter)
+              ConverterSheet(
+                onClose: () => setState(() => showConverter = false),
+              ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          SoundManager().playTapSound();
+          onPressed();
+        },
+        customBorder: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(icon, size: 26),
         ),
       ),
     );
@@ -478,4 +694,91 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       operator = null;
     });
   }
+
+  void _handleScientificFunction(ScientificOperator op) {
+    final inputValue = _scientificEngine.parseDisplay(display);
+    double result = 0;
+
+    switch (op) {
+      case ScientificOperator.sine:
+        result = _scientificEngine.sine(
+          _scientificEngine.degreesToRadians(inputValue),
+        );
+        break;
+      case ScientificOperator.cosine:
+        result = _scientificEngine.cosine(
+          _scientificEngine.degreesToRadians(inputValue),
+        );
+        break;
+      case ScientificOperator.tangent:
+        result = _scientificEngine.tangent(
+          _scientificEngine.degreesToRadians(inputValue),
+        );
+        break;
+      case ScientificOperator.arcsin:
+        result = _scientificEngine.radiansToDegrees(
+          _scientificEngine.arcsine(inputValue),
+        );
+        break;
+      case ScientificOperator.arccos:
+        result = _scientificEngine.radiansToDegrees(
+          _scientificEngine.arccosine(inputValue),
+        );
+        break;
+      case ScientificOperator.arctan:
+        result = _scientificEngine.radiansToDegrees(
+          _scientificEngine.arctangent(inputValue),
+        );
+        break;
+      case ScientificOperator.log:
+        result = _scientificEngine.naturalLog(inputValue);
+        break;
+      case ScientificOperator.log10:
+        result = _scientificEngine.log10(inputValue);
+        break;
+      case ScientificOperator.log2:
+        result = _scientificEngine.log2(inputValue);
+        break;
+      case ScientificOperator.sqrt:
+        result = _scientificEngine.squareRoot(inputValue);
+        break;
+      case ScientificOperator.cbrt:
+        result = _scientificEngine.cubeRoot(inputValue);
+        break;
+      case ScientificOperator.factorial:
+        result = _scientificEngine.factorial(inputValue);
+        break;
+      case ScientificOperator.reciprocal:
+        result = _scientificEngine.reciprocal(inputValue);
+        break;
+      case ScientificOperator.pi:
+        result = _scientificEngine.pi;
+        break;
+      case ScientificOperator.e:
+        result = _scientificEngine.e;
+        break;
+      case ScientificOperator.power:
+        // For power operation, we'll wait for second operand
+        history = '$inputValue xʸ ';
+        waitingForOperand = true;
+        setState(() => display = '0');
+        return;
+      case ScientificOperator.exp:
+        result = _scientificEngine.exponential(inputValue);
+        break;
+    }
+
+    setState(() {
+      display = result.toString();
+      history = '${op.displayName}($inputValue)';
+      waitingForOperand = true;
+    });
+  }
+
+  double parseDisplay(String s) => _engine.parseDisplay(s);
+}
+
+extension _ScientificCalculatorExtension on ScientificCalculator {
+  double parseDisplay(String s) =>
+      double.tryParse(s.replaceAll(',', '')) ?? 0.0;
 }
