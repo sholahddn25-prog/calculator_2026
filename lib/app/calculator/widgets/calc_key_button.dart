@@ -101,7 +101,7 @@ class _CalcKeyButtonState extends State<CalcKeyButton>
           widget.label!,
           style: TextStyle(
             fontSize: 22,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: widget.labelColor ?? foreground,
           ),
         );

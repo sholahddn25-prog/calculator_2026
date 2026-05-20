@@ -13,6 +13,7 @@ import '../widgets/calc_key_button.dart';
 import '../widgets/history_sheet.dart';
 import '../widgets/converter_sheet.dart';
 import '../widgets/scientific_panel.dart';
+import '../widgets/settings_sheet.dart';
 
 class CalculatorScreen extends StatefulWidget {
   const CalculatorScreen({super.key});
@@ -36,6 +37,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   bool showHistory = false;
   bool showScientific = false;
   bool showConverter = false;
+  bool showSettings = false;
   ScientificOperator? pendingScientificOp;
 
   final List<HistoryItem> historyLog = [];
@@ -159,6 +161,11 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                           setState(() => showConverter = true),
                                     ),
                                     _buildHeaderButton(
+                                      icon: Icons.settings_outlined,
+                                      onPressed: () =>
+                                          setState(() => showSettings = true),
+                                    ),
+                                    _buildHeaderButton(
                                       icon: isDarkMode
                                           ? Icons.wb_sunny_outlined
                                           : Icons.nightlight_round_outlined,
@@ -177,7 +184,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                       // Content area
                       Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.end,
                             crossAxisAlignment: CrossAxisAlignment.end,
@@ -283,20 +290,24 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                       ),
                                     ],
                                   ),
-                                  child: Text(
-                                    _engine.displayFormat(display),
-                                    textAlign: TextAlign.right,
-                                    style: TextStyle(
-                                      fontSize: 64,
-                                      fontWeight: FontWeight.w200,
-                                      letterSpacing: -1,
-                                      height: 1,
-                                      color: theme.colorScheme.onSurface,
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerRight,
+                                    child: Text(
+                                      _engine.displayFormat(display),
+                                      textAlign: TextAlign.right,
+                                      style: TextStyle(
+                                        fontSize: 56,
+                                        fontWeight: FontWeight.w300,
+                                        letterSpacing: -1,
+                                        height: 1.1,
+                                        color: theme.colorScheme.onSurface,
+                                      ),
                                     ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 12),
 
                               // Keypad area
                               Flexible(
@@ -307,7 +318,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                       )
                                     : Column(
                                         children: [
-                                          // 4x4 keypad using GridView
+                                          // Keypad 4x4 (dibuat lebih rapi via mapping index)
                                           Expanded(
                                             child: GridView.builder(
                                               shrinkWrap: true,
@@ -316,186 +327,169 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                               gridDelegate:
                                                   const SliverGridDelegateWithFixedCrossAxisCount(
                                                     crossAxisCount: 4,
-                                                    mainAxisSpacing: 14,
-                                                    crossAxisSpacing: 14,
+                                                    mainAxisSpacing: 10,
+                                                    crossAxisSpacing: 10,
                                                     childAspectRatio: 1.0,
                                                   ),
                                               itemCount: 16,
                                               itemBuilder: (context, index) {
-                                                switch (index) {
-                                                  case 0:
-                                                    return CalcKeyButton(
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .utility,
-                                                      label: 'AC',
-                                                      labelColor:
-                                                          Colors.redAccent,
-                                                      onTap: _handleClear,
-                                                    );
-                                                  case 1:
-                                                    return CalcKeyButton(
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .utility,
-                                                      label: '+/-',
-                                                      onTap: _handleToggleSign,
-                                                    );
-                                                  case 2:
-                                                    return CalcKeyButton(
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .utility,
-                                                      label: '%',
-                                                      onTap: _handlePercent,
-                                                    );
-                                                  case 3:
-                                                    return CalcKeyButton(
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .operator,
-                                                      icon: const Icon(
-                                                        Icons.close,
-                                                        size: 26,
-                                                      ),
-                                                      onTap: () =>
-                                                          _handleOperator(
-                                                            Operator.divide,
-                                                          ),
-                                                    );
+                                                final keyMap = <int, Widget>{
+                                                  0: CalcKeyButton(
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .utility,
+                                                    label: 'AC',
+                                                    labelColor:
+                                                        Colors.redAccent,
+                                                    onTap: _handleClear,
+                                                  ),
+                                                  1: CalcKeyButton(
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .utility,
+                                                    label: '+/-',
+                                                    onTap: _handleToggleSign,
+                                                  ),
+                                                  2: CalcKeyButton(
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .utility,
+                                                    label: '%',
+                                                    onTap: _handlePercent,
+                                                  ),
+                                                  3: CalcKeyButton(
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .operator,
+                                                    icon: const Icon(
+                                                      Icons.close,
+                                                      size: 26,
+                                                    ),
+                                                    onTap: () =>
+                                                        _handleOperator(
+                                                          Operator.divide,
+                                                        ),
+                                                  ),
+                                                  4: CalcKeyButton(
+                                                    label: '7',
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .number,
+                                                    onTap: () =>
+                                                        _handleDigit('7'),
+                                                  ),
+                                                  5: CalcKeyButton(
+                                                    label: '8',
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .number,
+                                                    onTap: () =>
+                                                        _handleDigit('8'),
+                                                  ),
+                                                  6: CalcKeyButton(
+                                                    label: '9',
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .number,
+                                                    onTap: () =>
+                                                        _handleDigit('9'),
+                                                  ),
+                                                  7: CalcKeyButton(
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .operator,
+                                                    icon: const Icon(
+                                                      Icons.clear,
+                                                      size: 26,
+                                                    ),
+                                                    onTap: () =>
+                                                        _handleOperator(
+                                                          Operator.multiply,
+                                                        ),
+                                                  ),
+                                                  8: CalcKeyButton(
+                                                    label: '4',
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .number,
+                                                    onTap: () =>
+                                                        _handleDigit('4'),
+                                                  ),
+                                                  9: CalcKeyButton(
+                                                    label: '5',
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .number,
+                                                    onTap: () =>
+                                                        _handleDigit('5'),
+                                                  ),
+                                                  10: CalcKeyButton(
+                                                    label: '6',
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .number,
+                                                    onTap: () =>
+                                                        _handleDigit('6'),
+                                                  ),
+                                                  11: CalcKeyButton(
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .operator,
+                                                    icon: const Icon(
+                                                      Icons.remove,
+                                                      size: 26,
+                                                    ),
+                                                    onTap: () =>
+                                                        _handleOperator(
+                                                          Operator.subtract,
+                                                        ),
+                                                  ),
+                                                  12: CalcKeyButton(
+                                                    label: '1',
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .number,
+                                                    onTap: () =>
+                                                        _handleDigit('1'),
+                                                  ),
+                                                  13: CalcKeyButton(
+                                                    label: '2',
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .number,
+                                                    onTap: () =>
+                                                        _handleDigit('2'),
+                                                  ),
+                                                  14: CalcKeyButton(
+                                                    label: '3',
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .number,
+                                                    onTap: () =>
+                                                        _handleDigit('3'),
+                                                  ),
+                                                  15: CalcKeyButton(
+                                                    variant:
+                                                        CalcKeyButtonVariant
+                                                            .operator,
+                                                    icon: const Icon(
+                                                      Icons.add,
+                                                      size: 26,
+                                                    ),
+                                                    onTap: () =>
+                                                        _handleOperator(
+                                                          Operator.add,
+                                                        ),
+                                                  ),
+                                                };
 
-                                                  case 4:
-                                                    return CalcKeyButton(
-                                                      label: '7',
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .number,
-                                                      onTap: () =>
-                                                          _handleDigit('7'),
-                                                    );
-                                                  case 5:
-                                                    return CalcKeyButton(
-                                                      label: '8',
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .number,
-                                                      onTap: () =>
-                                                          _handleDigit('8'),
-                                                    );
-                                                  case 6:
-                                                    return CalcKeyButton(
-                                                      label: '9',
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .number,
-                                                      onTap: () =>
-                                                          _handleDigit('9'),
-                                                    );
-                                                  case 7:
-                                                    return CalcKeyButton(
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .operator,
-                                                      icon: const Icon(
-                                                        Icons.clear,
-                                                        size: 26,
-                                                      ),
-                                                      onTap: () =>
-                                                          _handleOperator(
-                                                            Operator.multiply,
-                                                          ),
-                                                    );
-
-                                                  case 8:
-                                                    return CalcKeyButton(
-                                                      label: '4',
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .number,
-                                                      onTap: () =>
-                                                          _handleDigit('4'),
-                                                    );
-                                                  case 9:
-                                                    return CalcKeyButton(
-                                                      label: '5',
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .number,
-                                                      onTap: () =>
-                                                          _handleDigit('5'),
-                                                    );
-                                                  case 10:
-                                                    return CalcKeyButton(
-                                                      label: '6',
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .number,
-                                                      onTap: () =>
-                                                          _handleDigit('6'),
-                                                    );
-                                                  case 11:
-                                                    return CalcKeyButton(
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .operator,
-                                                      icon: const Icon(
-                                                        Icons.remove,
-                                                        size: 26,
-                                                      ),
-                                                      onTap: () =>
-                                                          _handleOperator(
-                                                            Operator.subtract,
-                                                          ),
-                                                    );
-
-                                                  case 12:
-                                                    return CalcKeyButton(
-                                                      label: '1',
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .number,
-                                                      onTap: () =>
-                                                          _handleDigit('1'),
-                                                    );
-                                                  case 13:
-                                                    return CalcKeyButton(
-                                                      label: '2',
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .number,
-                                                      onTap: () =>
-                                                          _handleDigit('2'),
-                                                    );
-                                                  case 14:
-                                                    return CalcKeyButton(
-                                                      label: '3',
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .number,
-                                                      onTap: () =>
-                                                          _handleDigit('3'),
-                                                    );
-                                                  case 15:
-                                                    return CalcKeyButton(
-                                                      variant:
-                                                          CalcKeyButtonVariant
-                                                              .operator,
-                                                      icon: const Icon(
-                                                        Icons.add,
-                                                        size: 26,
-                                                      ),
-                                                      onTap: () =>
-                                                          _handleOperator(
-                                                            Operator.add,
-                                                          ),
-                                                    );
-                                                }
-                                                return null;
+                                                return keyMap[index] ??
+                                                    const SizedBox.shrink();
                                               },
                                             ),
                                           ),
 
-                                          const SizedBox(height: 14),
+                                          const SizedBox(height: 10),
 
                                           // Bottom row: 0, '.', '='
                                           Row(
@@ -524,10 +518,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                                 child: CalcKeyButton(
                                                   variant: CalcKeyButtonVariant
                                                       .primary,
-                                                  icon: const Icon(
-                                                    Icons.arrow_forward_rounded,
-                                                    size: 28,
-                                                  ),
+                                                  label: '=',
                                                   onTap: _handleEqual,
                                                 ),
                                               ),
@@ -558,6 +549,11 @@ class _CalculatorScreenState extends State<CalculatorScreen>
               ConverterSheet(
                 onClose: () => setState(() => showConverter = false),
               ),
+
+            if (showSettings)
+              SettingsSheet(
+                onClose: () => setState(() => showSettings = false),
+              ),
           ],
         ),
       ),
@@ -578,9 +574,9 @@ class _CalculatorScreenState extends State<CalculatorScreen>
         customBorder: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Icon(icon, size: 26),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          child: Icon(icon, size: 24),
         ),
       ),
     );
@@ -650,6 +646,36 @@ class _CalculatorScreenState extends State<CalculatorScreen>
     final inputValue = _engine.parseDisplay(display);
 
     setState(() {
+      // Handle pending scientific operation (like xʸ)
+      if (pendingScientificOp == ScientificOperator.power &&
+          prevValue != null) {
+        final result = _scientificEngine.power(prevValue!, inputValue);
+        final calcString = '$prevValue xʸ $inputValue';
+
+        display = result.toString();
+        history = calcString;
+
+        final now = DateTime.now();
+        final newItem = HistoryItem(
+          id: now.microsecondsSinceEpoch.toString(),
+          calculation: calcString,
+          result: formatDisplayFromNum(result),
+          timestamp: now,
+        );
+
+        historyLog.insert(0, newItem);
+        if (historyLog.length > 50) {
+          historyLog.removeRange(50, historyLog.length);
+        }
+
+        prevValue = null;
+        operator = null;
+        pendingScientificOp = null;
+        waitingForOperand = true;
+        return;
+      }
+
+      // Handle regular operation
       if (operator != null && prevValue != null) {
         final result = _engine.calculate(prevValue!, inputValue, operator!);
         final calcString = '$prevValue ${operator!.symbol} $inputValue';
@@ -759,6 +785,8 @@ class _CalculatorScreenState extends State<CalculatorScreen>
         break;
       case ScientificOperator.power:
         // For power operation, we'll wait for second operand
+        prevValue = inputValue;
+        pendingScientificOp = op;
         history = '$inputValue xʸ ';
         waitingForOperand = true;
         setState(() => display = '0');
