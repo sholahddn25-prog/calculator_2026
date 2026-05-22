@@ -18,147 +18,98 @@ class HistorySheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Stack(
       children: [
-        // backdrop
         Positioned.fill(
           child: GestureDetector(
             onTap: onClose,
-            child: Container(color: Colors.black.withOpacity(0.18)),
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.45),
+            ),
           ),
         ),
         Align(
           alignment: Alignment.centerLeft,
           child: FractionallySizedBox(
-            widthFactor: 0.78,
+            widthFactor: 0.85,
             child: Material(
-              color: Theme.of(context).colorScheme.surface,
-              elevation: 12,
+              elevation: 0,
+              color: theme.colorScheme.surface,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(28),
+                  bottomRight: Radius.circular(28),
+                ),
+              ),
               child: SafeArea(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                      padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: const [
-                              Icon(Icons.history, size: 22),
-                              SizedBox(width: 12),
-                              Text(
-                                'History',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.history_rounded,
+                              size: 22,
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
-                          IconButton(
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Riwayat',
+                                  style: theme.textTheme.titleLarge,
+                                ),
+                                Text(
+                                  '${items.length} perhitungan',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton.filledTonal(
                             onPressed: onClose,
-                            icon: const Icon(Icons.chevron_left, size: 26),
+                            icon: const Icon(Icons.chevron_left_rounded),
                           ),
                         ],
                       ),
                     ),
-                    const Divider(height: 1),
+                    Divider(
+                      height: 1,
+                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                    ),
                     Expanded(
                       child: items.isEmpty
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 56,
-                                      height: 56,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primaryContainer
-                                            .withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(16),
-                                      ),
-                                      child: const Icon(
-                                        Icons.history,
-                                        size: 26,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 18),
-                                    const Text(
-                                      'No history yet.\nCalculations appear here.',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            )
+                          ? _EmptyHistory(theme: theme)
                           : ListView.separated(
                               padding: const EdgeInsets.fromLTRB(
                                 16,
                                 16,
                                 16,
-                                24,
+                                16,
                               ),
                               itemCount: items.length,
                               separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 10),
+                                  const SizedBox(height: 8),
                               itemBuilder: (context, i) {
                                 final item = items[i];
-                                return InkWell(
+                                return _HistoryTile(
+                                  item: item,
                                   onTap: () => onPick(item),
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(16),
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.surfaceContainerHighest,
-                                      border: Border.all(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.outline.withOpacity(0.12),
-                                      ),
-                                    ),
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          '${item.calculation} =',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          item.result,
-                                          style: TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w800,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
                                 );
                               },
                             ),
@@ -168,10 +119,16 @@ class HistorySheet extends StatelessWidget {
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
                         child: SizedBox(
                           width: double.infinity,
-                          child: OutlinedButton.icon(
+                          child: FilledButton.tonalIcon(
                             onPressed: onClear,
-                            icon: const Icon(Icons.delete_outline),
-                            label: const Text('Clear History'),
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            label: const Text('Hapus semua'),
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -182,6 +139,122 @@ class HistorySheet extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _EmptyHistory extends StatelessWidget {
+  final ThemeData theme;
+
+  const _EmptyHistory({required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Icon(
+                Icons.calculate_outlined,
+                size: 36,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Belum ada riwayat',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Hasil perhitungan Anda akan muncul di sini.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryTile extends StatelessWidget {
+  final HistoryItem item;
+  final VoidCallback onTap;
+
+  const _HistoryTile({required this.item, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.functions_rounded,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.calculation,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '= ${item.result}',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

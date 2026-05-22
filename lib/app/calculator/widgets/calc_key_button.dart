@@ -11,6 +11,7 @@ class CalcKeyButton extends StatefulWidget {
   final CalcKeyButtonVariant variant;
   final Color? labelColor;
   final EdgeInsets? padding;
+  final double? height;
 
   const CalcKeyButton({
     super.key,
@@ -20,6 +21,7 @@ class CalcKeyButton extends StatefulWidget {
     this.variant = CalcKeyButtonVariant.number,
     this.labelColor,
     this.padding,
+    this.height,
   }) : assert(label != null || icon != null);
 
   @override
@@ -28,132 +30,144 @@ class CalcKeyButton extends StatefulWidget {
 
 class _CalcKeyButtonState extends State<CalcKeyButton>
     with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _opacityAnimation;
+  late AnimationController _controller;
+  late Animation<double> _scale;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 200),
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 120),
       vsync: this,
     );
-
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-
-    _opacityAnimation = Tween<double>(begin: 1.0, end: 0.7).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    _scale = Tween<double>(begin: 1.0, end: 0.92).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   void _handlePress() {
     HapticFeedback.lightImpact();
     SoundManager().playTapSound();
-    _animationController.forward().then((_) {
-      _animationController.reverse();
-    });
+    _controller.forward().then((_) => _controller.reverse());
     widget.onTap();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     Color background;
     Color foreground;
-    Color shadowColor;
+    List<BoxShadow> shadows;
+    Border? border;
 
     switch (widget.variant) {
       case CalcKeyButtonVariant.number:
         background = theme.colorScheme.surfaceContainerHighest;
         foreground = theme.colorScheme.onSurface;
-        shadowColor = Colors.black.withValues(alpha: 0.1);
+        shadows = [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ];
+        border = Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.black.withValues(alpha: 0.04),
+        );
         break;
       case CalcKeyButtonVariant.utility:
         background = theme.colorScheme.surfaceContainer;
         foreground = theme.colorScheme.onSurfaceVariant;
-        shadowColor = Colors.black.withValues(alpha: 0.08);
+        shadows = [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ];
+        border = null;
         break;
       case CalcKeyButtonVariant.operator:
         background = theme.colorScheme.primaryContainer;
         foreground = theme.colorScheme.onPrimaryContainer;
-        shadowColor = theme.colorScheme.primary.withValues(alpha: 0.3);
+        shadows = [
+          BoxShadow(
+            color: theme.colorScheme.primary.withValues(alpha: 0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ];
+        border = null;
         break;
       case CalcKeyButtonVariant.primary:
         background = theme.colorScheme.primary;
         foreground = theme.colorScheme.onPrimary;
-        shadowColor = theme.colorScheme.primary.withValues(alpha: 0.4);
+        shadows = [
+          BoxShadow(
+            color: theme.colorScheme.primary.withValues(alpha: 0.45),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ];
+        border = null;
         break;
     }
 
-    final child =
-        widget.icon ??
+    final child = widget.icon ??
         Text(
           widget.label!,
           style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
+            fontSize: widget.variant == CalcKeyButtonVariant.utility ? 18 : 24,
+            fontWeight: FontWeight.w600,
             color: widget.labelColor ?? foreground,
+            letterSpacing: widget.label == '0' ? 0 : -0.5,
           ),
         );
 
     return Padding(
-      padding: widget.padding ?? const EdgeInsets.all(0),
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Opacity(
-          opacity: _opacityAnimation.value,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: shadowColor,
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                  spreadRadius: 0,
-                ),
-                BoxShadow(
-                  color: shadowColor,
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
-            child: Material(
-              color: background,
-              borderRadius: BorderRadius.circular(20),
-              child: InkWell(
-                onTap: _handlePress,
-                borderRadius: BorderRadius.circular(20),
-                splashColor: Colors.black.withValues(alpha: 0.1),
-                highlightColor: Colors.black.withValues(alpha: 0.05),
-                child: Container(
-                  height: 72,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        background.withValues(alpha: 0.2),
-                        background.withValues(alpha: 0),
-                      ],
-                    ),
-                  ),
-                  child: Center(child: child),
-                ),
+      padding: widget.padding ?? EdgeInsets.zero,
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (context, child) => Transform.scale(
+          scale: _scale.value,
+          child: child,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _handlePress,
+            borderRadius: BorderRadius.circular(18),
+            splashColor: foreground.withValues(alpha: 0.12),
+            highlightColor: foreground.withValues(alpha: 0.06),
+            child: Ink(
+              height: widget.height ?? 64,
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(18),
+                border: border,
+                boxShadow: shadows,
+                gradient: widget.variant == CalcKeyButtonVariant.primary
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          background,
+                          Color.lerp(background, Colors.white, 0.12)!,
+                        ],
+                      )
+                    : null,
               ),
+              child: Center(child: child),
             ),
           ),
         ),

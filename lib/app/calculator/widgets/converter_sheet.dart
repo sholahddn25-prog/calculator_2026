@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/unit_converter.dart';
+import 'sheet_header.dart';
 
 class ConverterSheet extends StatefulWidget {
   final VoidCallback onClose;
@@ -12,7 +13,7 @@ class ConverterSheet extends StatefulWidget {
 
 class _ConverterSheetState extends State<ConverterSheet> {
   final converter = UnitConverter();
-  int selectedCategory = 0; // 0: Length, 1: Weight, 2: Volume, 3: Temperature
+  int selectedCategory = 0;
 
   final inputController = TextEditingController();
   String outputValue = '0';
@@ -20,17 +21,24 @@ class _ConverterSheetState extends State<ConverterSheet> {
   String selectedToUnit = 'cm';
 
   final List<List<String>> categories = [
-    ['mm', 'cm', 'm', 'km', 'in', 'ft', 'yd', 'mi'], // Length
-    ['mg', 'g', 'kg', 'lb', 'oz', 'ton'], // Weight
-    ['ml', 'l', 'gal', 'pt', 'cup', 'floz'], // Volume
-    ['°C', '°F', 'K'], // Temperature
+    ['mm', 'cm', 'm', 'km', 'in', 'ft', 'yd', 'mi'],
+    ['mg', 'g', 'kg', 'lb', 'oz', 'ton'],
+    ['ml', 'l', 'gal', 'pt', 'cup', 'floz'],
+    ['°C', '°F', 'K'],
   ];
 
   final List<String> categoryNames = [
-    'Length',
-    'Weight',
+    'Panjang',
+    'Berat',
     'Volume',
-    'Temperature',
+    'Suhu',
+  ];
+
+  final List<IconData> categoryIcons = [
+    Icons.straighten_rounded,
+    Icons.scale_rounded,
+    Icons.water_drop_outlined,
+    Icons.thermostat_rounded,
   ];
 
   @override
@@ -50,30 +58,26 @@ class _ConverterSheetState extends State<ConverterSheet> {
     double result = 0;
 
     switch (selectedCategory) {
-      case 0: // Length
+      case 0:
         result = converter.convertLength(
           input,
           selectedFromUnit,
           selectedToUnit,
         );
-        break;
-      case 1: // Weight
+      case 1:
         result = converter.convertWeight(
           input,
           selectedFromUnit,
           selectedToUnit,
         );
-        break;
-      case 2: // Volume
+      case 2:
         result = converter.convertVolume(
           input,
           selectedFromUnit,
           selectedToUnit,
         );
-        break;
-      case 3: // Temperature
+      case 3:
         result = _convertTemperature(input);
-        break;
     }
 
     setState(() {
@@ -81,6 +85,15 @@ class _ConverterSheetState extends State<ConverterSheet> {
           .toStringAsFixed(6)
           .replaceAll(RegExp(r'0*$'), '')
           .replaceAll(RegExp(r'\.$'), '');
+    });
+  }
+
+  void _swapUnits() {
+    setState(() {
+      final temp = selectedFromUnit;
+      selectedFromUnit = selectedToUnit;
+      selectedToUnit = temp;
+      _convert();
     });
   }
 
@@ -107,41 +120,34 @@ class _ConverterSheetState extends State<ConverterSheet> {
     final theme = Theme.of(context);
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.9,
-      minChildSize: 0.6,
+      initialChildSize: 0.88,
+      minChildSize: 0.55,
       maxChildSize: 0.95,
       builder: (context, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: theme.scaffoldBackgroundColor,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(24),
-              topRight: Radius.circular(24),
-            ),
+            color: theme.colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 24,
+                offset: const Offset(0, -4),
+              ),
+            ],
           ),
           child: ListView(
             controller: scrollController,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Unit Converter',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-                  ),
-                  IconButton(
-                    onPressed: widget.onClose,
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
+              SheetHeader(
+                title: 'Konverter',
+                icon: Icons.swap_horiz_rounded,
+                onClose: widget.onClose,
               ),
-              const SizedBox(height: 16),
-
-              // Category selector
+              const SizedBox(height: 20),
               SizedBox(
-                height: 50,
+                height: 44,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: categoryNames.length,
@@ -149,9 +155,17 @@ class _ConverterSheetState extends State<ConverterSheet> {
                     final isSelected = selectedCategory == index;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
+                      child: FilterChip(
+                        avatar: Icon(
+                          categoryIcons[index],
+                          size: 18,
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurfaceVariant,
+                        ),
                         label: Text(categoryNames[index]),
                         selected: isSelected,
+                        showCheckmark: false,
                         onSelected: (_) {
                           setState(() {
                             selectedCategory = index;
@@ -169,98 +183,159 @@ class _ConverterSheetState extends State<ConverterSheet> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Input section
-              const Text(
-                'From',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: inputController,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        hintText: '0',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+              _ConverterField(
+                label: 'Dari',
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: inputController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  DropdownButton<String>(
-                    value: selectedFromUnit,
-                    items: categories[selectedCategory]
-                        .map(
-                          (unit) =>
-                              DropdownMenuItem(value: unit, child: Text(unit)),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedFromUnit = value;
-                          _convert();
-                        });
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              // Output section
-              const Text(
-                'To',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: theme.colorScheme.outline),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        outputValue,
-                        style: TextStyle(
-                          fontSize: 18,
+                        style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface,
+                        ),
+                        decoration: const InputDecoration(hintText: '0'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    _UnitDropdown(
+                      value: selectedFromUnit,
+                      units: categories[selectedCategory],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            selectedFromUnit = value;
+                            _convert();
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Center(
+                child: IconButton.filled(
+                  onPressed: _swapUnits,
+                  icon: const Icon(Icons.swap_vert_rounded),
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.primaryContainer,
+                    foregroundColor: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _ConverterField(
+                label: 'Ke',
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 18,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer
+                              .withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: theme.colorScheme.primary
+                                .withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Text(
+                          outputValue,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.primary,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  DropdownButton<String>(
-                    value: selectedToUnit,
-                    items: categories[selectedCategory]
-                        .map(
-                          (unit) =>
-                              DropdownMenuItem(value: unit, child: Text(unit)),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() {
-                          selectedToUnit = value;
-                          _convert();
-                        });
-                      }
-                    },
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    _UnitDropdown(
+                      value: selectedToUnit,
+                      units: categories[selectedCategory],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            selectedToUnit = value;
+                            _convert();
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _ConverterField extends StatelessWidget {
+  final String label;
+  final Widget child;
+
+  const _ConverterField({required this.label, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        child,
+      ],
+    );
+  }
+}
+
+class _UnitDropdown extends StatelessWidget {
+  final String value;
+  final List<String> units;
+  final ValueChanged<String?> onChanged;
+
+  const _UnitDropdown({
+    required this.value,
+    required this.units,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: theme.colorScheme.outline),
+      ),
+      child: DropdownButton<String>(
+        value: value,
+        underline: const SizedBox.shrink(),
+        borderRadius: BorderRadius.circular(12),
+        items: units
+            .map((unit) => DropdownMenuItem(value: unit, child: Text(unit)))
+            .toList(),
+        onChanged: onChanged,
+      ),
     );
   }
 }

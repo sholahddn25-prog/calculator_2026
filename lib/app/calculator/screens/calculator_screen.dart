@@ -65,7 +65,6 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   @override
   Widget build(BuildContext context) {
     final theme = isDarkMode ? _darkTheme : _lightTheme;
-    final isDark = theme.brightness == Brightness.dark;
 
     return Theme(
       data: theme,
@@ -73,25 +72,31 @@ class _CalculatorScreenState extends State<CalculatorScreen>
         backgroundColor: theme.scaffoldBackgroundColor,
         body: Stack(
           children: [
-            // Animated background gradient
             AnimatedContainer(
               duration: const Duration(milliseconds: 600),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [
-                          const Color(0xFF0E0F12),
-                          const Color(0xFF1A1B22),
-                          const Color(0xFF0E0F12),
-                        ]
-                      : [
-                          const Color(0xFFF5F5F7),
-                          const Color(0xFFFFFFFF),
-                          const Color(0xFFF0F0F2),
-                        ],
+                  colors: AppTheme.backgroundGradient(theme.brightness),
+                  stops: const [0.0, 0.35, 0.7, 1.0],
                 ),
+              ),
+            ),
+            Positioned(
+              top: -80,
+              right: -60,
+              child: _GlowOrb(
+                color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                size: 220,
+              ),
+            ),
+            Positioned(
+              bottom: 120,
+              left: -40,
+              child: _GlowOrb(
+                color: theme.colorScheme.secondary.withValues(alpha: 0.08),
+                size: 160,
               ),
             ),
             SafeArea(
@@ -118,59 +123,101 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                             curve: Curves.easeOutCubic,
                           ),
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                _buildHeaderButton(
-                                  icon: Icons.history_outlined,
+                                _HeaderIconButton(
+                                  icon: Icons.history_rounded,
+                                  tooltip: 'Riwayat',
+                                  isActive: showHistory,
                                   onPressed: () =>
                                       setState(() => showHistory = true),
                                 ),
-                                ShaderMask(
-                                  shaderCallback: (bounds) {
-                                    return LinearGradient(
-                                      colors: [
-                                        Colors.transparent,
-                                        theme.colorScheme.onSurface,
-                                        Colors.transparent,
-                                      ],
-                                    ).createShader(bounds);
-                                  },
-                                  child: const Text(
-                                    'Calculator',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.5,
-                                    ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        'Calculator',
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: -0.3,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      _ModeChip(
+                                        label: showScientific
+                                            ? 'Scientific'
+                                            : 'Standard',
+                                        isScientific: showScientific,
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _buildHeaderButton(
-                                      icon: Icons.functions,
-                                      onPressed: () => setState(
-                                        () => showScientific = !showScientific,
+                                _HeaderIconButton(
+                                  icon: Icons.calculate_rounded,
+                                  tooltip: 'Scientific',
+                                  isActive: showScientific,
+                                  onPressed: () => setState(
+                                    () => showScientific = !showScientific,
+                                  ),
+                                ),
+                                PopupMenuButton<String>(
+                                  icon: Icon(
+                                    Icons.more_horiz_rounded,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  onSelected: (value) {
+                                    switch (value) {
+                                      case 'converter':
+                                        setState(() => showConverter = true);
+                                      case 'settings':
+                                        setState(() => showSettings = true);
+                                      case 'theme':
+                                        setState(
+                                          () => isDarkMode = !isDarkMode,
+                                        );
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(
+                                      value: 'converter',
+                                      child: ListTile(
+                                        leading: Icon(Icons.swap_horiz_rounded),
+                                        title: Text('Konverter'),
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: true,
                                       ),
                                     ),
-                                    _buildHeaderButton(
-                                      icon: Icons.swap_horiz,
-                                      onPressed: () =>
-                                          setState(() => showConverter = true),
+                                    const PopupMenuItem(
+                                      value: 'settings',
+                                      child: ListTile(
+                                        leading:
+                                            Icon(Icons.settings_outlined),
+                                        title: Text('Pengaturan'),
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: true,
+                                      ),
                                     ),
-                                    _buildHeaderButton(
-                                      icon: Icons.settings_outlined,
-                                      onPressed: () =>
-                                          setState(() => showSettings = true),
-                                    ),
-                                    _buildHeaderButton(
-                                      icon: isDarkMode
-                                          ? Icons.wb_sunny_outlined
-                                          : Icons.nightlight_round_outlined,
-                                      onPressed: () => setState(
-                                        () => isDarkMode = !isDarkMode,
+                                    PopupMenuItem(
+                                      value: 'theme',
+                                      child: ListTile(
+                                        leading: Icon(
+                                          isDarkMode
+                                              ? Icons.wb_sunny_outlined
+                                              : Icons.dark_mode_outlined,
+                                        ),
+                                        title: Text(
+                                          isDarkMode
+                                              ? 'Mode terang'
+                                              : 'Mode gelap',
+                                        ),
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: true,
                                       ),
                                     ),
                                   ],
@@ -241,54 +288,13 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                 },
                                 child: Container(
                                   key: ValueKey(display),
+                                  width: double.infinity,
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 12,
+                                    horizontal: 20,
+                                    vertical: 20,
                                   ),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(24),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: isDark
-                                          ? [
-                                              Colors.white.withValues(
-                                                alpha: 0.05,
-                                              ),
-                                              Colors.white.withValues(
-                                                alpha: 0.02,
-                                              ),
-                                            ]
-                                          : [
-                                              Colors.black.withValues(
-                                                alpha: 0.02,
-                                              ),
-                                              Colors.black.withValues(
-                                                alpha: 0.01,
-                                              ),
-                                            ],
-                                    ),
-                                    border: Border.all(
-                                      color: isDark
-                                          ? Colors.white.withValues(alpha: 0.08)
-                                          : Colors.black.withValues(
-                                              alpha: 0.05,
-                                            ),
-                                      width: 1,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: isDark
-                                            ? Colors.black.withValues(
-                                                alpha: 0.3,
-                                              )
-                                            : Colors.black.withValues(
-                                                alpha: 0.05,
-                                              ),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
+                                  decoration: AppTheme.displayCardDecoration(
+                                    context,
                                   ),
                                   child: FittedBox(
                                     fit: BoxFit.scaleDown,
@@ -296,11 +302,12 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                     child: Text(
                                       _engine.displayFormat(display),
                                       textAlign: TextAlign.right,
-                                      style: TextStyle(
-                                        fontSize: 56,
+                                      style: theme.textTheme.displayLarge
+                                          ?.copyWith(
+                                        fontSize: 52,
                                         fontWeight: FontWeight.w300,
-                                        letterSpacing: -1,
-                                        height: 1.1,
+                                        letterSpacing: -1.5,
+                                        height: 1.05,
                                         color: theme.colorScheme.onSurface,
                                       ),
                                     ),
@@ -327,9 +334,9 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                               gridDelegate:
                                                   const SliverGridDelegateWithFixedCrossAxisCount(
                                                     crossAxisCount: 4,
-                                                    mainAxisSpacing: 10,
-                                                    crossAxisSpacing: 10,
-                                                    childAspectRatio: 1.0,
+                                                    mainAxisSpacing: 8,
+                                                    crossAxisSpacing: 8,
+                                                    childAspectRatio: 1.05,
                                                   ),
                                               itemCount: 16,
                                               itemBuilder: (context, index) {
@@ -361,10 +368,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                                     variant:
                                                         CalcKeyButtonVariant
                                                             .operator,
-                                                    icon: const Icon(
-                                                      Icons.close,
-                                                      size: 26,
-                                                    ),
+                                                    label: '÷',
                                                     onTap: () =>
                                                         _handleOperator(
                                                           Operator.divide,
@@ -398,10 +402,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                                     variant:
                                                         CalcKeyButtonVariant
                                                             .operator,
-                                                    icon: const Icon(
-                                                      Icons.clear,
-                                                      size: 26,
-                                                    ),
+                                                    label: '×',
                                                     onTap: () =>
                                                         _handleOperator(
                                                           Operator.multiply,
@@ -489,9 +490,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                             ),
                                           ),
 
-                                          const SizedBox(height: 10),
-
-                                          // Bottom row: 0, '.', '='
+                                          const SizedBox(height: 8),
                                           Row(
                                             children: [
                                               Expanded(
@@ -504,7 +503,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                                       _handleDigit('0'),
                                                 ),
                                               ),
-                                              const SizedBox(width: 14),
+                                              const SizedBox(width: 8),
                                               Expanded(
                                                 child: CalcKeyButton(
                                                   label: '.',
@@ -513,7 +512,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                                   onTap: _handleDecimal,
                                                 ),
                                               ),
-                                              const SizedBox(width: 14),
+                                              const SizedBox(width: 8),
                                               Expanded(
                                                 child: CalcKeyButton(
                                                   variant: CalcKeyButtonVariant
@@ -546,37 +545,21 @@ class _CalculatorScreenState extends State<CalculatorScreen>
               ),
 
             if (showConverter)
-              ConverterSheet(
-                onClose: () => setState(() => showConverter = false),
+              _ModalOverlay(
+                onDismiss: () => setState(() => showConverter = false),
+                child: ConverterSheet(
+                  onClose: () => setState(() => showConverter = false),
+                ),
               ),
 
             if (showSettings)
-              SettingsSheet(
-                onClose: () => setState(() => showSettings = false),
+              _ModalOverlay(
+                onDismiss: () => setState(() => showSettings = false),
+                child: SettingsSheet(
+                  onClose: () => setState(() => showSettings = false),
+                ),
               ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeaderButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          SoundManager().playTapSound();
-          onPressed();
-        },
-        customBorder: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(10),
-          child: Icon(icon, size: 24),
         ),
       ),
     );
@@ -809,4 +792,131 @@ class _CalculatorScreenState extends State<CalculatorScreen>
 extension _ScientificCalculatorExtension on ScientificCalculator {
   double parseDisplay(String s) =>
       double.tryParse(s.replaceAll(',', '')) ?? 0.0;
+}
+
+class _ModalOverlay extends StatelessWidget {
+  final VoidCallback onDismiss;
+  final Widget child;
+
+  const _ModalOverlay({required this.onDismiss, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          GestureDetector(
+            onTap: onDismiss,
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.4),
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _GlowOrb extends StatelessWidget {
+  final Color color;
+  final double size;
+
+  const _GlowOrb({required this.color, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String tooltip;
+  final bool isActive;
+
+  const _HeaderIconButton({
+    required this.icon,
+    required this.onPressed,
+    required this.tooltip,
+    this.isActive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: isActive
+            ? theme.colorScheme.primaryContainer
+            : theme.colorScheme.surface.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () {
+            SoundManager().playTapSound();
+            onPressed();
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(
+              icon,
+              size: 22,
+              color: isActive
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ModeChip extends StatelessWidget {
+  final String label;
+  final bool isScientific;
+
+  const _ModeChip({required this.label, required this.isScientific});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: isScientific
+            ? theme.colorScheme.primary.withValues(alpha: 0.15)
+            : theme.colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isScientific
+              ? theme.colorScheme.primary.withValues(alpha: 0.35)
+              : theme.colorScheme.outline.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: isScientific
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurfaceVariant,
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
 }

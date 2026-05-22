@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app/calculator/screens/calculator_screen.dart';
+import 'app/calculator/theme/app_theme.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
+  );
   runApp(const QuietLuxuryCalculatorApp());
 }
 
@@ -12,11 +18,11 @@ class QuietLuxuryCalculatorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Quiet Luxury Calculator',
+      title: 'Calculator 2026',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
-      theme: ThemeData.light(),
-      darkTheme: ThemeData.dark(),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
       home: const CalculatorScreen(),
     );
   }
