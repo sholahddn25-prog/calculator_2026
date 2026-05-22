@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-import 'app/calculator/screens/calculator_screen.dart';
+import 'app/calculator/screens/splash_screen.dart';
+import 'app/calculator/theme/app_theme.dart';
+import 'app/calculator/utils/calculator_preferences.dart';
 
-void main() {
-  runApp(const QuietLuxuryCalculatorApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
+  );
+  await CalculatorPreferences.instance.load();
+  runApp(const Calculator2026App());
 }
 
-class QuietLuxuryCalculatorApp extends StatelessWidget {
-  const QuietLuxuryCalculatorApp({super.key});
+class Calculator2026App extends StatelessWidget {
+  const Calculator2026App({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Quiet Luxury Calculator',
+      title: 'Calculator 2026 Pro',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.system,
-      theme: ThemeData.light(),
-      darkTheme: ThemeData.dark(),
-      home: const CalculatorScreen(),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      home: const SplashScreen(),
     );
   }
 }

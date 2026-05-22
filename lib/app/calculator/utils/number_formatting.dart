@@ -1,40 +1,72 @@
+import 'calculator_preferences.dart';
+
 String formatNumber(String raw) {
+  final prefs = CalculatorPreferences.instance;
   final num? parsed = num.tryParse(raw.replaceAll(',', ''));
   if (parsed == null) return raw;
-
-  // Match the JS behavior: maximumFractionDigits: 8
-  final formatter = NumberFormatter(maxFractionDigits: 8);
-  return formatter.format(parsed);
+  return _formatValue(parsed, prefs);
 }
 
 String formatDisplayFromNum(num value) {
-  final formatter = NumberFormatter(maxFractionDigits: 8);
+  return _formatValue(value, CalculatorPreferences.instance);
+}
+
+String _formatValue(num value, CalculatorPreferences prefs) {
+  if (prefs.scientificNotation && _shouldUseSciNotation(value)) {
+    return _formatScientific(value, prefs);
+  }
+
+  final formatter = NumberFormatter(
+    maxFractionDigits: prefs.decimalPlaces,
+    useThousandsSeparator: prefs.thousandSeparator,
+  );
   return formatter.format(value);
+}
+
+bool _shouldUseSciNotation(num value) {
+  if (value == 0) return false;
+  final abs = value.abs();
+  return abs >= 1e10 || (abs > 0 && abs < 1e-6);
+}
+
+String _formatScientific(num value, CalculatorPreferences prefs) {
+  final s = value.toStringAsExponential(prefs.decimalPlaces);
+  if (!prefs.thousandSeparator) return s;
+  final parts = s.split('e');
+  if (parts.length != 2) return s;
+  final mantissa = NumberFormatter(
+    maxFractionDigits: prefs.decimalPlaces,
+    useThousandsSeparator: true,
+  ).format(num.tryParse(parts[0]) ?? 0);
+  return '${mantissa}e${parts[1]}';
 }
 
 class NumberFormatter {
   final int maxFractionDigits;
+  final bool useThousandsSeparator;
 
-  NumberFormatter({required this.maxFractionDigits});
+  NumberFormatter({
+    required this.maxFractionDigits,
+    this.useThousandsSeparator = true,
+  });
 
   String format(num value) {
-    // Avoid intl dependency: simple formatting with fixed decimals trimming.
-    // This is "good enough" for calculator display.
-    if (value is int) return value.toString();
+    if (value is int && maxFractionDigits == 0) {
+      return useThousandsSeparator ? _addThousands(value.toString()) : value.toString();
+    }
 
     final s = value.toStringAsFixed(maxFractionDigits);
-    // Trim trailing zeros
     final trimmed = s.contains('.')
         ? s.replaceFirst(RegExp(r'0+$'), '').replaceFirst(RegExp(r'\.$'), '')
         : s;
-    return _addThousands(trimmed);
+    return useThousandsSeparator ? _addThousands(trimmed) : trimmed;
   }
 
   String _addThousands(String s) {
     final parts = s.split('.');
     final intPart = parts[0];
     final buf = StringBuffer();
-    bool negative = intPart.startsWith('-');
+    final negative = intPart.startsWith('-');
     final absInt = negative ? intPart.substring(1) : intPart;
 
     for (int i = 0; i < absInt.length; i++) {
@@ -45,7 +77,9 @@ class NumberFormatter {
       }
     }
     final out = buf.toString();
-    if (negative) return '-$out${parts.length > 1 ? '.${parts[1]}' : ''}';
+    if (negative) {
+      return '-$out${parts.length > 1 ? '.${parts[1]}' : ''}';
+    }
     return out + (parts.length > 1 ? '.${parts[1]}' : '');
   }
 }
