@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/scientific_operator.dart';
-import '../utils/sound_manager.dart';
+import '../utils/calculator_preferences.dart';
 
 class ScientificPanel extends StatelessWidget {
   final Function(ScientificOperator) onScientificTap;
@@ -59,7 +60,9 @@ class ScientificPanel extends StatelessWidget {
                       onTap: isDisabled
                           ? null
                           : () {
-                              SoundManager().playTapSound();
+                              if (CalculatorPreferences.instance.hapticEnabled) {
+                                HapticFeedback.lightImpact();
+                              }
                               final operator = operatorMap[label];
                               if (operator != null) {
                                 onScientificTap(operator);

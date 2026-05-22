@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/history_item.dart';
 import '../models/operator.dart';
 import '../models/scientific_operator.dart';
 import '../theme/app_theme.dart';
+import '../models/calc_snapshot.dart';
+import '../utils/calc_result.dart';
 import '../utils/calculator_engine.dart';
 import '../utils/number_formatting.dart';
 import '../utils/animations/calc_transition.dart';
 import '../utils/scientific_calculator.dart';
-import '../utils/sound_manager.dart';
-import '../widgets/calc_key_button.dart';
+import '../utils/calculator_preferences.dart';
+import '../widgets/calculator_keypad.dart';
+import '../widgets/memory_bar.dart';
 import '../widgets/history_sheet.dart';
 import '../widgets/converter_sheet.dart';
 import '../widgets/scientific_panel.dart';
 import '../widgets/settings_sheet.dart';
+import '../widgets/premium_background.dart';
+import '../widgets/premium_display.dart';
+import '../widgets/tools_sheet.dart';
 
 class CalculatorScreen extends StatefulWidget {
   const CalculatorScreen({super.key});
@@ -33,14 +40,18 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   Operator? operator;
   bool waitingForOperand = false;
 
-  bool isDarkMode = false;
   bool showHistory = false;
   bool showScientific = false;
   bool showConverter = false;
   bool showSettings = false;
+  bool showTools = false;
+  bool hasError = false;
   ScientificOperator? pendingScientificOp;
+  double? memoryValue;
 
   final List<HistoryItem> historyLog = [];
+  final List<CalcSnapshot> _undoStack = [];
+  final _prefs = CalculatorPreferences.instance;
   late AnimationController _headerAnimationController;
 
   ThemeData get _lightTheme => AppTheme.light();
@@ -54,51 +65,47 @@ class _CalculatorScreenState extends State<CalculatorScreen>
       vsync: this,
     );
     _headerAnimationController.forward();
+    _prefs.addListener(_onPreferencesChanged);
+    _prefs.load().then((_) {
+      if (!mounted) return;
+      setState(() => showScientific = _prefs.scientificOnStart);
+    });
+  }
+
+  void _onPreferencesChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _prefs.removeListener(_onPreferencesChanged);
     _headerAnimationController.dispose();
     super.dispose();
   }
 
+  bool _isDarkMode(BuildContext context) =>
+      _prefs.resolveDarkMode(MediaQuery.platformBrightnessOf(context));
+
   @override
   Widget build(BuildContext context) {
-    final theme = isDarkMode ? _darkTheme : _lightTheme;
+    return ListenableBuilder(
+      listenable: _prefs,
+      builder: (context, _) {
+        final theme = _isDarkMode(context) ? _darkTheme : _lightTheme;
+        return _buildThemedApp(context, theme);
+      },
+    );
+  }
 
+  Widget _buildThemedApp(BuildContext context, ThemeData theme) {
     return Theme(
       data: theme,
       child: Scaffold(
         backgroundColor: theme.scaffoldBackgroundColor,
-        body: Stack(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 600),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: AppTheme.backgroundGradient(theme.brightness),
-                  stops: const [0.0, 0.35, 0.7, 1.0],
-                ),
-              ),
-            ),
-            Positioned(
-              top: -80,
-              right: -60,
-              child: _GlowOrb(
-                color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                size: 220,
-              ),
-            ),
-            Positioned(
-              bottom: 120,
-              left: -40,
-              child: _GlowOrb(
-                color: theme.colorScheme.secondary.withValues(alpha: 0.08),
-                size: 160,
-              ),
-            ),
+        body: PremiumBackground(
+          brightness: theme.brightness,
+          child: Stack(
+            children: [
             SafeArea(
               child: Center(
                 child: ConstrainedBox(
@@ -137,12 +144,22 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                 Expanded(
                                   child: Column(
                                     children: [
-                                      Text(
-                                        'Calculator',
-                                        style: theme.textTheme.titleMedium
-                                            ?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: -0.3,
+                                      ShaderMask(
+                                        shaderCallback: (bounds) =>
+                                            LinearGradient(
+                                          colors: [
+                                            theme.colorScheme.primary,
+                                            AppTheme.accentGold,
+                                          ],
+                                        ).createShader(bounds),
+                                        child: Text(
+                                          'Calculator 2026',
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: -0.3,
+                                            color: Colors.white,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(height: 4),
@@ -173,17 +190,50 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                   ),
                                   onSelected: (value) {
                                     switch (value) {
+                                      case 'copy':
+                                        _copyResult();
+                                      case 'percent':
+                                        _handlePercent();
+                                      case 'tools':
+                                        setState(() => showTools = true);
                                       case 'converter':
                                         setState(() => showConverter = true);
                                       case 'settings':
                                         setState(() => showSettings = true);
                                       case 'theme':
-                                        setState(
-                                          () => isDarkMode = !isDarkMode,
-                                        );
+                                        _cycleThemePreference();
                                     }
                                   },
                                   itemBuilder: (context) => [
+                                    PopupMenuItem(
+                                      value: 'copy',
+                                      child: ListTile(
+                                        leading: const Icon(
+                                          Icons.copy_rounded,
+                                        ),
+                                        title: const Text('Salin hasil'),
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: true,
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'percent',
+                                      child: ListTile(
+                                        leading: Icon(Icons.percent_rounded),
+                                        title: Text('Persen (%)'),
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: true,
+                                      ),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'tools',
+                                      child: ListTile(
+                                        leading: Icon(Icons.handyman_rounded),
+                                        title: Text('Alat praktis'),
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: true,
+                                      ),
+                                    ),
                                     const PopupMenuItem(
                                       value: 'converter',
                                       child: ListTile(
@@ -207,14 +257,12 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                       value: 'theme',
                                       child: ListTile(
                                         leading: Icon(
-                                          isDarkMode
+                                          _isDarkMode(context)
                                               ? Icons.wb_sunny_outlined
                                               : Icons.dark_mode_outlined,
                                         ),
                                         title: Text(
-                                          isDarkMode
-                                              ? 'Mode terang'
-                                              : 'Mode gelap',
+                                          'Tema: ${_themeMenuLabel()}',
                                         ),
                                         contentPadding: EdgeInsets.zero,
                                         dense: true,
@@ -236,46 +284,6 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                             mainAxisAlignment: MainAxisAlignment.end,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              // History display
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeInCubic,
-                                transitionBuilder: (child, anim) {
-                                  return FadeTransition(
-                                    opacity: anim,
-                                    child: SlideTransition(
-                                      position:
-                                          Tween<Offset>(
-                                            begin: const Offset(0.1, 0),
-                                            end: Offset.zero,
-                                          ).animate(
-                                            CurvedAnimation(
-                                              parent: anim,
-                                              curve: Curves.easeOutCubic,
-                                            ),
-                                          ),
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                                child: history.isEmpty
-                                    ? const SizedBox.shrink()
-                                    : Text(
-                                        history,
-                                        key: ValueKey(history),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          letterSpacing: 0.3,
-                                          color: theme
-                                              .colorScheme
-                                              .onSurfaceVariant,
-                                        ),
-                                      ),
-                              ),
-                              const SizedBox(height: 12),
-                              // Main display
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 350),
                                 switchInCurve: Curves.easeOutCubic,
@@ -286,32 +294,19 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                     child: child,
                                   );
                                 },
-                                child: Container(
-                                  key: ValueKey(display),
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 20,
-                                  ),
-                                  decoration: AppTheme.displayCardDecoration(
-                                    context,
-                                  ),
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerRight,
-                                    child: Text(
-                                      _engine.displayFormat(display),
-                                      textAlign: TextAlign.right,
-                                      style: theme.textTheme.displayLarge
-                                          ?.copyWith(
-                                        fontSize: 52,
-                                        fontWeight: FontWeight.w300,
-                                        letterSpacing: -1.5,
-                                        height: 1.05,
-                                        color: theme.colorScheme.onSurface,
-                                      ),
-                                    ),
-                                  ),
+                                child: PremiumDisplay(
+                                  key: ValueKey('$display-$hasError'),
+                                  formatted: hasError
+                                      ? display
+                                      : _engine.displayFormat(display),
+                                  history: history.isEmpty ? null : history,
+                                  livePreview: _livePreviewText(),
+                                  fontSize: _prefs.displayFontSize,
+                                  hasError: hasError,
+                                  canUndo: _undoStack.isNotEmpty,
+                                  onUndo: _handleUndo,
+                                  onCopy: _copyResult,
+                                  onPaste: _pasteFromClipboard,
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -325,203 +320,24 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                                       )
                                     : Column(
                                         children: [
-                                          // Keypad 4x4 (dibuat lebih rapi via mapping index)
-                                          Expanded(
-                                            child: GridView.builder(
-                                              shrinkWrap: true,
-                                              physics:
-                                                  const NeverScrollableScrollPhysics(),
-                                              gridDelegate:
-                                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                                    crossAxisCount: 4,
-                                                    mainAxisSpacing: 8,
-                                                    crossAxisSpacing: 8,
-                                                    childAspectRatio: 1.05,
-                                                  ),
-                                              itemCount: 16,
-                                              itemBuilder: (context, index) {
-                                                final keyMap = <int, Widget>{
-                                                  0: CalcKeyButton(
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .utility,
-                                                    label: 'AC',
-                                                    labelColor:
-                                                        Colors.redAccent,
-                                                    onTap: _handleClear,
-                                                  ),
-                                                  1: CalcKeyButton(
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .utility,
-                                                    label: '+/-',
-                                                    onTap: _handleToggleSign,
-                                                  ),
-                                                  2: CalcKeyButton(
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .utility,
-                                                    label: '%',
-                                                    onTap: _handlePercent,
-                                                  ),
-                                                  3: CalcKeyButton(
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .operator,
-                                                    label: '÷',
-                                                    onTap: () =>
-                                                        _handleOperator(
-                                                          Operator.divide,
-                                                        ),
-                                                  ),
-                                                  4: CalcKeyButton(
-                                                    label: '7',
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .number,
-                                                    onTap: () =>
-                                                        _handleDigit('7'),
-                                                  ),
-                                                  5: CalcKeyButton(
-                                                    label: '8',
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .number,
-                                                    onTap: () =>
-                                                        _handleDigit('8'),
-                                                  ),
-                                                  6: CalcKeyButton(
-                                                    label: '9',
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .number,
-                                                    onTap: () =>
-                                                        _handleDigit('9'),
-                                                  ),
-                                                  7: CalcKeyButton(
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .operator,
-                                                    label: '×',
-                                                    onTap: () =>
-                                                        _handleOperator(
-                                                          Operator.multiply,
-                                                        ),
-                                                  ),
-                                                  8: CalcKeyButton(
-                                                    label: '4',
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .number,
-                                                    onTap: () =>
-                                                        _handleDigit('4'),
-                                                  ),
-                                                  9: CalcKeyButton(
-                                                    label: '5',
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .number,
-                                                    onTap: () =>
-                                                        _handleDigit('5'),
-                                                  ),
-                                                  10: CalcKeyButton(
-                                                    label: '6',
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .number,
-                                                    onTap: () =>
-                                                        _handleDigit('6'),
-                                                  ),
-                                                  11: CalcKeyButton(
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .operator,
-                                                    icon: const Icon(
-                                                      Icons.remove,
-                                                      size: 26,
-                                                    ),
-                                                    onTap: () =>
-                                                        _handleOperator(
-                                                          Operator.subtract,
-                                                        ),
-                                                  ),
-                                                  12: CalcKeyButton(
-                                                    label: '1',
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .number,
-                                                    onTap: () =>
-                                                        _handleDigit('1'),
-                                                  ),
-                                                  13: CalcKeyButton(
-                                                    label: '2',
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .number,
-                                                    onTap: () =>
-                                                        _handleDigit('2'),
-                                                  ),
-                                                  14: CalcKeyButton(
-                                                    label: '3',
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .number,
-                                                    onTap: () =>
-                                                        _handleDigit('3'),
-                                                  ),
-                                                  15: CalcKeyButton(
-                                                    variant:
-                                                        CalcKeyButtonVariant
-                                                            .operator,
-                                                    icon: const Icon(
-                                                      Icons.add,
-                                                      size: 26,
-                                                    ),
-                                                    onTap: () =>
-                                                        _handleOperator(
-                                                          Operator.add,
-                                                        ),
-                                                  ),
-                                                };
-
-                                                return keyMap[index] ??
-                                                    const SizedBox.shrink();
-                                              },
-                                            ),
+                                          MemoryBar(
+                                            hasMemory: memoryValue != null,
+                                            onClear: _memoryClear,
+                                            onRecall: _memoryRecall,
+                                            onAdd: _memoryAdd,
+                                            onSubtract: _memorySubtract,
                                           ),
-
-                                          const SizedBox(height: 8),
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                flex: 2,
-                                                child: CalcKeyButton(
-                                                  label: '0',
-                                                  variant: CalcKeyButtonVariant
-                                                      .number,
-                                                  onTap: () =>
-                                                      _handleDigit('0'),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: CalcKeyButton(
-                                                  label: '.',
-                                                  variant: CalcKeyButtonVariant
-                                                      .number,
-                                                  onTap: _handleDecimal,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Expanded(
-                                                child: CalcKeyButton(
-                                                  variant: CalcKeyButtonVariant
-                                                      .primary,
-                                                  label: '=',
-                                                  onTap: _handleEqual,
-                                                ),
-                                              ),
-                                            ],
+                                          Expanded(
+                                            child: CalculatorKeypad(
+                                              onClear: _handleClear,
+                                              onBackspace: _handleBackspace,
+                                              onToggleSign: _handleToggleSign,
+                                              onPercent: _handlePercent,
+                                              onDigit: _handleDigit,
+                                              onDecimal: _handleDecimal,
+                                              onOperator: _handleOperator,
+                                              onEqual: _handleEqual,
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -541,7 +357,7 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                 items: List.unmodifiable(historyLog),
                 onClose: () => setState(() => showHistory = false),
                 onPick: _useHistoryItem,
-                onClear: () => setState(() => historyLog.clear()),
+                onClear: _clearHistory,
               ),
 
             if (showConverter)
@@ -557,26 +373,224 @@ class _CalculatorScreenState extends State<CalculatorScreen>
                 onDismiss: () => setState(() => showSettings = false),
                 child: SettingsSheet(
                   onClose: () => setState(() => showSettings = false),
+                  onThemeChanged: (_) => setState(() {}),
+                  onScientificModeChanged: (v) =>
+                      setState(() => showScientific = v),
+                ),
+              ),
+
+            if (showTools)
+              _ModalOverlay(
+                onDismiss: () => setState(() => showTools = false),
+                child: ToolsSheet(
+                  onClose: () => setState(() => showTools = false),
+                  onApplyResult: (v) {
+                    setState(() {
+                      display = _engine.formatResultValue(v);
+                      hasError = false;
+                      waitingForOperand = true;
+                    });
+                  },
                 ),
               ),
           ],
+          ),
         ),
       ),
     );
   }
 
+  String? _livePreviewText() {
+    if (hasError || waitingForOperand || operator == null || prevValue == null) {
+      return null;
+    }
+    final input = _engine.parseDisplay(display);
+    final r = _engine.preview(prevValue, input, operator);
+    if (r == null || !r.isOk) return null;
+    return _engine.displayFormatFromDouble(r.value!);
+  }
+
+  void _pushUndo() {
+    _undoStack.add(
+      CalcSnapshot(
+        display: display,
+        history: history,
+        prevValue: prevValue,
+        operator: operator,
+        waitingForOperand: waitingForOperand,
+        hasError: hasError,
+      ),
+    );
+    if (_undoStack.length > 24) {
+      _undoStack.removeAt(0);
+    }
+  }
+
+  void _handleUndo() {
+    if (_undoStack.isEmpty) return;
+    final s = _undoStack.removeLast();
+    setState(() {
+      display = s.display;
+      history = s.history;
+      prevValue = s.prevValue;
+      operator = s.operator;
+      waitingForOperand = s.waitingForOperand;
+      hasError = s.hasError;
+    });
+    _showSnack('Dibatalkan');
+  }
+
+
+  String _themeMenuLabel() {
+    switch (_prefs.themePreference) {
+      case AppThemePreference.system:
+        return 'Sistem';
+      case AppThemePreference.light:
+        return 'Terang';
+      case AppThemePreference.dark:
+        return 'Gelap';
+    }
+  }
+
+  Future<void> _cycleThemePreference() async {
+    final next = switch (_prefs.themePreference) {
+      AppThemePreference.system => AppThemePreference.light,
+      AppThemePreference.light => AppThemePreference.dark,
+      AppThemePreference.dark => AppThemePreference.system,
+    };
+    await _prefs.setThemePreference(next);
+    setState(() {});
+  }
+
+  Future<void> _clearHistory() async {
+    if (_prefs.confirmClearHistory) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Hapus riwayat?'),
+          content: const Text(
+            'Semua perhitungan tersimpan akan dihapus permanen.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Hapus'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    setState(() => historyLog.clear());
+    _showSnack('Riwayat dihapus');
+  }
+
+  void _addHistoryItem(HistoryItem item) {
+    historyLog.insert(0, item);
+    final max = _prefs.maxHistoryItems;
+    if (historyLog.length > max) {
+      historyLog.removeRange(max, historyLog.length);
+    }
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _copyResult() async {
+    final text = _engine.displayFormat(display);
+    await Clipboard.setData(ClipboardData(text: text));
+    _showSnack('Disalin: $text');
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData('text/plain');
+    final raw = data?.text?.replaceAll(',', '').trim();
+    if (raw == null || raw.isEmpty) {
+      _showSnack('Clipboard kosong');
+      return;
+    }
+    final value = double.tryParse(raw);
+    if (value == null) {
+      _showSnack('Angka tidak valid');
+      return;
+    }
+    setState(() {
+      display = value.toString();
+      waitingForOperand = false;
+    });
+    _showSnack('Ditempel');
+  }
+
+  void _handleBackspace() {
+    setState(() {
+      if (waitingForOperand) return;
+      if (display.length <= 1 || display == '-0') {
+        display = '0';
+      } else {
+        display = display.substring(0, display.length - 1);
+        if (display.isEmpty || display == '-') display = '0';
+      }
+    });
+  }
+
+  void _memoryClear() {
+    setState(() => memoryValue = null);
+    _showSnack('Memori dihapus');
+  }
+
+  void _memoryRecall() {
+    if (memoryValue == null) return;
+    setState(() {
+      display = memoryValue!.toString();
+      waitingForOperand = true;
+    });
+  }
+
+  void _memoryAdd() {
+    final v = _engine.parseDisplay(display);
+    setState(() => memoryValue = (memoryValue ?? 0) + v);
+    _showSnack('Disimpan ke memori (M+)');
+  }
+
+  void _memorySubtract() {
+    final v = _engine.parseDisplay(display);
+    setState(() => memoryValue = (memoryValue ?? 0) - v);
+    _showSnack('Disimpan ke memori (M−)');
+  }
+
   void _handleClear() {
+    _pushUndo();
     setState(() {
       display = '0';
       history = '';
       prevValue = null;
       operator = null;
       waitingForOperand = false;
+      hasError = false;
     });
   }
 
   void _handleDigit(String digit) {
+    _pushUndo();
     setState(() {
+      if (hasError) {
+        hasError = false;
+        display = digit;
+        waitingForOperand = false;
+        return;
+      }
       if (waitingForOperand) {
         display = digit;
         waitingForOperand = false;
@@ -607,17 +621,20 @@ class _CalculatorScreenState extends State<CalculatorScreen>
   }
 
   void _handleOperator(Operator nextOperator) {
+    if (hasError) return;
+    _pushUndo();
     final inputValue = _engine.parseDisplay(display);
 
     setState(() {
       if (prevValue == null) {
         prevValue = inputValue;
-        history = '$inputValue ${nextOperator.symbol}';
+        history = '${_engine.displayFormatFromDouble(inputValue)} ${nextOperator.symbol}';
       } else if (operator != null) {
         final result = _engine.calculate(prevValue!, inputValue, operator!);
-        prevValue = result;
-        display = result.toString();
-        history = '$result ${nextOperator.symbol}';
+        if (!_applyResultInPlace(result)) return;
+        prevValue = result.value;
+        history =
+            '${_engine.displayFormatFromDouble(result.value!)} ${nextOperator.symbol}';
       }
 
       waitingForOperand = true;
@@ -625,7 +642,21 @@ class _CalculatorScreenState extends State<CalculatorScreen>
     });
   }
 
+  bool _applyResultInPlace(CalcResult result) {
+    if (result.isError) {
+      display = result.errorMessage!;
+      hasError = true;
+      waitingForOperand = true;
+      return false;
+    }
+    display = _engine.formatResultValue(result.value!);
+    hasError = false;
+    return true;
+  }
+
   void _handleEqual() {
+    if (hasError) return;
+    _pushUndo();
     final inputValue = _engine.parseDisplay(display);
 
     setState(() {
@@ -646,42 +677,39 @@ class _CalculatorScreenState extends State<CalculatorScreen>
           timestamp: now,
         );
 
-        historyLog.insert(0, newItem);
-        if (historyLog.length > 50) {
-          historyLog.removeRange(50, historyLog.length);
-        }
+        _addHistoryItem(newItem);
 
         prevValue = null;
         operator = null;
         pendingScientificOp = null;
         waitingForOperand = true;
+        if (_prefs.autoCopyResult) _copyResult();
         return;
       }
 
       // Handle regular operation
       if (operator != null && prevValue != null) {
         final result = _engine.calculate(prevValue!, inputValue, operator!);
-        final calcString = '$prevValue ${operator!.symbol} $inputValue';
+        if (!_applyResultInPlace(result)) return;
+        final calcString =
+            '${_engine.displayFormatFromDouble(prevValue!)} ${operator!.symbol} ${_engine.displayFormatFromDouble(inputValue)}';
 
-        display = result.toString();
         history = calcString;
 
         final now = DateTime.now();
         final newItem = HistoryItem(
           id: now.microsecondsSinceEpoch.toString(),
           calculation: calcString,
-          result: formatDisplayFromNum(result),
+          result: formatDisplayFromNum(result.value!),
           timestamp: now,
         );
 
-        historyLog.insert(0, newItem);
-        if (historyLog.length > 50) {
-          historyLog.removeRange(50, historyLog.length);
-        }
+        _addHistoryItem(newItem);
 
         prevValue = null;
         operator = null;
         waitingForOperand = true;
+        if (_prefs.autoCopyResult) _copyResult();
       }
     });
   }
@@ -708,36 +736,50 @@ class _CalculatorScreenState extends State<CalculatorScreen>
     final inputValue = _scientificEngine.parseDisplay(display);
     double result = 0;
 
+    final useDeg = _prefs.useDegrees;
+
     switch (op) {
       case ScientificOperator.sine:
         result = _scientificEngine.sine(
-          _scientificEngine.degreesToRadians(inputValue),
+          useDeg
+              ? _scientificEngine.degreesToRadians(inputValue)
+              : inputValue,
         );
         break;
       case ScientificOperator.cosine:
         result = _scientificEngine.cosine(
-          _scientificEngine.degreesToRadians(inputValue),
+          useDeg
+              ? _scientificEngine.degreesToRadians(inputValue)
+              : inputValue,
         );
         break;
       case ScientificOperator.tangent:
         result = _scientificEngine.tangent(
-          _scientificEngine.degreesToRadians(inputValue),
+          useDeg
+              ? _scientificEngine.degreesToRadians(inputValue)
+              : inputValue,
         );
         break;
       case ScientificOperator.arcsin:
-        result = _scientificEngine.radiansToDegrees(
-          _scientificEngine.arcsine(inputValue),
-        );
+        result = useDeg
+            ? _scientificEngine.radiansToDegrees(
+                _scientificEngine.arcsine(inputValue),
+              )
+            : _scientificEngine.arcsine(inputValue);
         break;
       case ScientificOperator.arccos:
-        result = _scientificEngine.radiansToDegrees(
-          _scientificEngine.arccosine(inputValue),
-        );
+        result = useDeg
+            ? _scientificEngine.radiansToDegrees(
+                _scientificEngine.arccosine(inputValue),
+              )
+            : _scientificEngine.arccosine(inputValue);
         break;
       case ScientificOperator.arctan:
-        result = _scientificEngine.radiansToDegrees(
-          _scientificEngine.arctangent(inputValue),
-        );
+        result = useDeg
+            ? _scientificEngine.radiansToDegrees(
+                _scientificEngine.arctangent(inputValue),
+              )
+            : _scientificEngine.arctangent(inputValue);
         break;
       case ScientificOperator.log:
         result = _scientificEngine.naturalLog(inputValue);
@@ -818,25 +860,6 @@ class _ModalOverlay extends StatelessWidget {
   }
 }
 
-class _GlowOrb extends StatelessWidget {
-  final Color color;
-  final double size;
-
-  const _GlowOrb({required this.color, required this.size});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
-      ),
-    );
-  }
-}
-
 class _HeaderIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
@@ -863,7 +886,9 @@ class _HeaderIconButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: () {
-            SoundManager().playTapSound();
+            if (CalculatorPreferences.instance.hapticEnabled) {
+              HapticFeedback.lightImpact();
+            }
             onPressed();
           },
           borderRadius: BorderRadius.circular(14),

@@ -9,7 +9,7 @@ class CalcColors {
   static const lightDisplay = Color(0xFFE8EEF4);
   static const lightKey = Color(0xFFFFFFFF);
   static const lightKeyMuted = Color(0xFFE2E8F0);
-  static const lightAccent = Color(0xFF0D9488);
+  static const lightAccent = Color(0xFF0F766E);
   static const lightAccentSoft = Color(0xFFCCFBF1);
   static const lightOperator = Color(0xFF0F766E);
   static const lightText = Color(0xFF0F172A);
@@ -21,7 +21,7 @@ class CalcColors {
   static const darkDisplay = Color(0xFF1A2332);
   static const darkKey = Color(0xFF1E293B);
   static const darkKeyMuted = Color(0xFF334155);
-  static const darkAccent = Color(0xFF2DD4BF);
+  static const darkAccent = Color(0xFF5EEAD4);
   static const darkAccentSoft = Color(0xFF134E4A);
   static const darkOperator = Color(0xFF5EEAD4);
   static const darkText = Color(0xFFF1F5F9);
@@ -29,6 +29,9 @@ class CalcColors {
 }
 
 class AppTheme {
+  static const accentGold = Color(0xFFD4AF37);
+  static const accentGoldLight = Color(0xFFF5E6B8);
+
   static TextTheme _textTheme(Brightness brightness) {
     final base = GoogleFonts.plusJakartaSansTextTheme(
       brightness == Brightness.light
@@ -190,18 +193,31 @@ class AppTheme {
   static List<Color> backgroundGradient(Brightness brightness) {
     if (brightness == Brightness.dark) {
       return const [
-        Color(0xFF070B14),
+        Color(0xFF030712),
         Color(0xFF0F172A),
-        Color(0xFF0A1628),
-        Color(0xFF070B14),
+        Color(0xFF1E1B4B),
+        Color(0xFF030712),
       ];
     }
     return const [
-      Color(0xFFE8F4FC),
-      Color(0xFFF0F4F8),
-      Color(0xFFF8FAFC),
-      Color(0xFFEEF2FF),
+      Color(0xFFFAFAF9),
+      Color(0xFFF5F5F4),
+      Color(0xFFE7E5E4),
+      Color(0xFFD6D3D1),
     ];
+  }
+
+  /// Warna hasil — kontras tinggi di mode terang.
+  static Color displayResultColor(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFFF8FAFC)
+        : const Color(0xFF0B1220);
+  }
+
+  static Color displayHistoryColor(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF475569);
   }
 
   static BoxDecoration displayCardDecoration(BuildContext context) {
@@ -217,14 +233,15 @@ class AppTheme {
                 const Color(0xFF111827),
               ]
             : [
-                Colors.white,
-                const Color(0xFFF1F5F9),
+                const Color(0xFFFFFFFF),
+                const Color(0xFFE2E8F0),
               ],
       ),
       border: Border.all(
         color: isDark
             ? Colors.white.withValues(alpha: 0.08)
-            : Colors.black.withValues(alpha: 0.06),
+            : const Color(0xFFCBD5E1),
+        width: isDark ? 1 : 1.5,
       ),
       boxShadow: [
         BoxShadow(

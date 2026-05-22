@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../utils/sound_manager.dart';
+import '../theme/app_theme.dart';
+import '../utils/calculator_preferences.dart';
 
 enum CalcKeyButtonVariant { number, utility, operator, primary }
 
@@ -31,17 +32,17 @@ class CalcKeyButton extends StatefulWidget {
 class _CalcKeyButtonState extends State<CalcKeyButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _scale;
+  late Animation<double> _press;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 120),
+      duration: const Duration(milliseconds: 140),
       vsync: this,
     );
-    _scale = Tween<double>(begin: 1.0, end: 0.92).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    _press = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
   }
 
@@ -52,8 +53,9 @@ class _CalcKeyButtonState extends State<CalcKeyButton>
   }
 
   void _handlePress() {
-    HapticFeedback.lightImpact();
-    SoundManager().playTapSound();
+    if (CalculatorPreferences.instance.hapticEnabled) {
+      HapticFeedback.mediumImpact();
+    }
     _controller.forward().then((_) => _controller.reverse());
     widget.onTap();
   }
@@ -67,22 +69,25 @@ class _CalcKeyButtonState extends State<CalcKeyButton>
     Color foreground;
     List<BoxShadow> shadows;
     Border? border;
+    Gradient? gradient;
 
     switch (widget.variant) {
       case CalcKeyButtonVariant.number:
-        background = theme.colorScheme.surfaceContainerHighest;
+        background = isDark
+            ? const Color(0xFF1E293B)
+            : Colors.white;
         foreground = theme.colorScheme.onSurface;
         shadows = [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ];
         border = Border.all(
           color: isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : Colors.black.withValues(alpha: 0.04),
+              ? Colors.white.withValues(alpha: 0.07)
+              : const Color(0xFFE2E8F0),
         );
         break;
       case CalcKeyButtonVariant.utility:
@@ -90,36 +95,59 @@ class _CalcKeyButtonState extends State<CalcKeyButton>
         foreground = theme.colorScheme.onSurfaceVariant;
         shadows = [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
         ];
-        border = null;
         break;
       case CalcKeyButtonVariant.operator:
         background = theme.colorScheme.primaryContainer;
         foreground = theme.colorScheme.onPrimaryContainer;
+        gradient = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primaryContainer,
+            Color.lerp(
+              theme.colorScheme.primaryContainer,
+              theme.colorScheme.primary,
+              0.15,
+            )!,
+          ],
+        );
         shadows = [
           BoxShadow(
-            color: theme.colorScheme.primary.withValues(alpha: 0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: theme.colorScheme.primary.withValues(alpha: 0.3),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
           ),
         ];
-        border = null;
         break;
       case CalcKeyButtonVariant.primary:
         background = theme.colorScheme.primary;
         foreground = theme.colorScheme.onPrimary;
+        gradient = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            theme.colorScheme.primary,
+            Color.lerp(theme.colorScheme.primary, AppTheme.accentGold, 0.25)!,
+          ],
+        );
         shadows = [
           BoxShadow(
-            color: theme.colorScheme.primary.withValues(alpha: 0.45),
-            blurRadius: 16,
+            color: theme.colorScheme.primary.withValues(alpha: 0.5),
+            blurRadius: 18,
             offset: const Offset(0, 6),
           ),
+          if (isDark)
+            BoxShadow(
+              color: AppTheme.accentGold.withValues(alpha: 0.2),
+              blurRadius: 12,
+              offset: const Offset(0, 2),
+            ),
         ];
-        border = null;
         break;
     }
 
@@ -127,45 +155,44 @@ class _CalcKeyButtonState extends State<CalcKeyButton>
         Text(
           widget.label!,
           style: TextStyle(
-            fontSize: widget.variant == CalcKeyButtonVariant.utility ? 18 : 24,
+            fontSize: widget.variant == CalcKeyButtonVariant.utility ? 18 : 26,
             fontWeight: FontWeight.w600,
             color: widget.labelColor ?? foreground,
-            letterSpacing: widget.label == '0' ? 0 : -0.5,
+            letterSpacing: -0.5,
           ),
         );
 
     return Padding(
       padding: widget.padding ?? EdgeInsets.zero,
       child: AnimatedBuilder(
-        animation: _scale,
-        builder: (context, child) => Transform.scale(
-          scale: _scale.value,
-          child: child,
-        ),
+        animation: _press,
+        builder: (context, child) {
+          final p = _press.value;
+          final tiltX = p * 0.12;
+          final scale = 1.0 - p * 0.06;
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.0012)
+              ..rotateX(tiltX)
+              ..scale(scale, scale, 1.0),
+            child: child,
+          );
+        },
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: _handlePress,
-            borderRadius: BorderRadius.circular(18),
-            splashColor: foreground.withValues(alpha: 0.12),
-            highlightColor: foreground.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(20),
+            splashColor: foreground.withValues(alpha: 0.15),
             child: Ink(
-              height: widget.height ?? 64,
+              height: widget.height ?? 62,
               decoration: BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.circular(18),
+                color: gradient == null ? background : null,
+                gradient: gradient,
+                borderRadius: BorderRadius.circular(20),
                 border: border,
                 boxShadow: shadows,
-                gradient: widget.variant == CalcKeyButtonVariant.primary
-                    ? LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          background,
-                          Color.lerp(background, Colors.white, 0.12)!,
-                        ],
-                      )
-                    : null,
               ),
               child: Center(child: child),
             ),
